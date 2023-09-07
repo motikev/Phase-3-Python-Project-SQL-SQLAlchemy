@@ -3,6 +3,7 @@ from sqlalchemy import create_engine, Column, Integer, String, DateTime, Foreign
 from sqlalchemy.orm import sessionmaker, relationship
 from sqlalchemy.orm import declarative_base
 from datetime import datetime
+from tabulate import tabulate
 
 Base = declarative_base()
 
@@ -14,7 +15,6 @@ class User(Base):
     password_hash = Column(String, nullable=False)
     email = Column(String, unique=True, nullable=False)
 
-    # Define the relationship to TimerSession and Project
     timer_sessions = relationship('TimerSession', back_populates='user')
     projects = relationship('Project', back_populates='user')
 
@@ -28,7 +28,6 @@ class TimerSession(Base):
     end_time = Column(DateTime)
     duration = Column(Integer)
 
-    # Define the relationship to User and Project
     user = relationship('User', back_populates='timer_sessions')
     project = relationship('Project', back_populates='timer_sessions')
 
@@ -39,7 +38,6 @@ class Project(Base):
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
     project_name = Column(String, nullable=False)
 
-    # Define the relationship to User and TimerSession
     user = relationship('User', back_populates='projects')
     timer_sessions = relationship('TimerSession', back_populates='project')
 
@@ -58,18 +56,31 @@ def countdown(t, session, user, project=None):
     end_time = datetime.now()
     duration = (end_time - start_time).seconds
 
-    # Create a new TimerSession entry in the database
     session.add(TimerSession(user=user, project=project, start_time=start_time, end_time=end_time, duration=duration))
     session.commit()
 
     print('Timer completed!')
+
+    timer_sessions = session.query(TimerSession).filter_by(user=user).all()
+    data = []
+    for session_entry in timer_sessions:
+        data.append({
+            "Session ID": session_entry.id,
+            "User ID": session_entry.user_id,      # Include user_id
+            "Project ID": session_entry.project_id,  # Include project_id
+            "Start Time": session_entry.start_time,
+            "End Time": session_entry.end_time,
+            "Duration (seconds)": session_entry.duration,
+        })
+
+    print("\nTimer Sessions:")
+    print(tabulate(data, headers="keys", tablefmt="fancy_grid"))
 
 def main():
     username = input('Enter your username: ')
     project_name = input('Enter the project name (or press Enter for no project): ')
     t = int(input('Enter the time in seconds: '))
 
-    # Check if the user already exists, or create a new user
     session = Session()
     user = session.query(User).filter_by(username=username).first()
     if not user:
@@ -79,7 +90,6 @@ def main():
         session.add(user)
         session.commit()
 
-    # Check if a project with the given name exists, or create a new project
     project = None
     if project_name:
         existing_project = session.query(Project).filter_by(user=user, project_name=project_name).first()
